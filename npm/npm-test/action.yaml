@@ -1,0 +1,96 @@
+name: npm-test
+description: "Install dependencies and run tests for an NPM package."
+inputs:
+  workingDirectory:
+    description: "Working directory containing package.json."
+    required: false
+    default: "."
+  nodeVersion:
+    description: "Node.js version to use."
+    required: false
+    default: "20"
+  registries:
+    description: "Newline-separated list of registry URLs that require authentication."
+    required: false
+    default: "${{ github.server_url }}/api/packages/${{ github.repository_owner }}/npm/index.json"
+  apiKeys:
+    description: "Newline-separated list of API keys corresponding to registries."
+    required: false
+    default: "${{ github.token }}"
+  testCommand:
+    description: "Command to run tests. Default: npm test"
+    required: false
+    default: "npm test"
+  uploadTestResults:
+    description: "Whether to upload test results artifacts. Values: true, false."
+    required: false
+    default: "true"
+  testResultsFile:
+    description: "Path to test results file (relative to workingDirectory). Default: test-results.json"
+    required: false
+    default: "test-results.json"
+  testResultsArtifactName:
+    description: "Name of the test results artifact to upload. Default: test-results"
+    required: false
+    default: "test-results"
+  uploadCoverage:
+    description: "Whether to upload coverage artifacts. Values: true, false."
+    required: false
+    default: "false"
+  coverageDirectory:
+    description: "Directory for the coverage output. Default: coverage"
+    required: false
+    default: "coverage"
+  coverageArtifactName:
+    description: "Name of the coverage artifact to upload. Default: coverage"
+    required: false
+    default: "coverage"
+  retention-days:
+    description: "Number of retention days for artifacts. Default: 7"
+    required: false
+    default: "7"
+runs:
+  using: "composite"
+  steps:
+  - name: "Setup Node.js"
+    uses: https://github.com/actions/setup-node@v4
+    with:
+      node-version: ${{ inputs.nodeVersion }}
+      cache: npm
+      cache-dependency-path: ${{ inputs.workingDirectory }}/package-lock.json
+  - name: "Configure npm authentication"
+    if: ${{ inputs.registries && inputs.apiKeys }}
+    run: |
+      bash "${{ github.action_path }}/configure-auth.sh" add "${{ inputs.registries }}" "${{ inputs.apiKeys }}"
+    working-directory: ${{ inputs.workingDirectory }}
+    shell: bash
+  - name: "Install dependencies"
+    run: npm ci
+    working-directory: ${{ inputs.workingDirectory }}
+    shell: bash
+  - name: "Run tests"
+    run: ${{ inputs.testCommand }}
+    working-directory: ${{ inputs.workingDirectory }}
+    shell: bash
+  - name: "Upload test results"
+    if: ${{ inputs.uploadTestResults == 'true' && always() }}
+    uses: https://github.com/ChristopherHX/gitea-upload-artifact@v4
+    with:
+      name: ${{ inputs.testResultsArtifactName }}
+      path: ${{ inputs.workingDirectory }}/${{ inputs.testResultsFile }}
+      if-no-files-found: warn
+      retention-days: ${{ inputs.retention-days }}
+  - name: "Upload coverage artifacts"
+    if: ${{ inputs.uploadCoverage == 'true' && always() }}
+    uses: https://github.com/ChristopherHX/gitea-upload-artifact@v4
+    with:
+      name: ${{ inputs.coverageArtifactName }}
+      path: ${{ inputs.workingDirectory }}/${{ inputs.coverageDirectory }}
+      if-no-files-found: warn
+      retention-days: ${{ inputs.retention-days }}
+  - name: "Clean up npm authentication"
+    if: always()
+    run: |
+      bash "${{ github.action_path }}/configure-auth.sh" remove
+    working-directory: ${{ inputs.workingDirectory }}
+    shell: bash

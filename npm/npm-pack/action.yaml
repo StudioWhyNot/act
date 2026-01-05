@@ -1,0 +1,79 @@
+name: npm-pack
+description: "Build and pack an NPM package into a .tgz file."
+inputs:
+  version:
+    description: "Version to set in package.json before packing."
+    required: true
+  workingDirectory:
+    description: "Working directory containing package.json."
+    required: false
+    default: "."
+  nodeVersion:
+    description: "Node.js version to use."
+    required: false
+    default: "20"
+  buildScript:
+    description: "Build script to run before packing (e.g., 'build' for 'npm run build'). Set to empty string to skip build step."
+    required: false
+    default: "build"
+  outputDirectory:
+    description: "Directory for the output .tgz."
+    required: true
+    default: "out"
+  registry:
+    description: "NPM registry URL."
+    required: false
+    default: ${{ github.server_url }}/api/packages/${{ github.repository_owner }}/npm/
+  skipInstall:
+    description: "Skip npm ci step (dependencies already installed)."
+    required: false
+    default: "false"
+outputs:
+  tgz:
+    description: "The generated output .tgz file."
+    value: ${{ steps.package.outputs.tgz }}
+  tgzName:
+    description: "The generated output .tgz file's name."
+    value: ${{ steps.package.outputs.tgzName }}
+runs:
+  using: "composite"
+  steps:
+  - name: "Setup Node.js"
+    uses: https://github.com/actions/setup-node@v4
+    with:
+      node-version: ${{ inputs.nodeVersion }}
+      cache: npm
+      cache-dependency-path: ${{ inputs.workingDirectory }}/package-lock.json
+      registry-url: ${{ inputs.registry }}
+  - name: "Install dependencies"
+    if: ${{ inputs.skipInstall != 'true' }}
+    run: npm ci
+    working-directory: ${{ inputs.workingDirectory }}
+    shell: bash
+  - name: "Update package version"
+    run: npm version ${{ inputs.version }} --no-git-tag-version --allow-same-version
+    working-directory: ${{ inputs.workingDirectory }}
+    shell: bash
+  - name: "Build package"
+    if: ${{ inputs.buildScript }}
+    run: npm run ${{ inputs.buildScript }}
+    working-directory: ${{ inputs.workingDirectory }}
+    shell: bash
+  - name: "Create output directory"
+    run: mkdir -p "${{ inputs.outputDirectory }}"
+    shell: bash
+  - name: "Pack package"
+    run: npm pack --pack-destination "${{ github.workspace }}/${{ inputs.outputDirectory }}"
+    working-directory: ${{ inputs.workingDirectory }}
+    shell: bash
+  - name: "Generate package outputs"
+    id: package
+    run: |
+      # Extract package name from package.json
+      PACKAGE_NAME=$(node -p "require('./package.json').name")
+      TGZ_NAME="$PACKAGE_NAME-${{ inputs.version }}.tgz"
+      TGZ_PATH="${{ inputs.outputDirectory }}/$TGZ_NAME"
+      echo "tgz=$TGZ_PATH" >> "$GITHUB_OUTPUT"
+      echo "tgzName=$TGZ_NAME" >> "$GITHUB_OUTPUT"
+    working-directory: ${{ inputs.workingDirectory }}
+    shell: bash

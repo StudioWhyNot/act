@@ -1,0 +1,35 @@
+name: yq-expression
+description: "Change the language format of a file."
+inputs:
+  input:
+    description: "Yaml to run the expression on."
+    required: true
+  expression:
+    description: "Expression to run."
+    required: true
+    default: "."
+  tmpDir:
+    description: "Temporary directory. Default: _tmp"
+    required: true
+    default: _tmp
+outputs:
+  result:
+    description: "The converted file."
+    value: ${{ steps.expression.outputs.console }}
+runs:
+  using: "composite"
+  steps:
+  - name: "Make temporary file of input."
+    id: input
+    uses: act/common/utils/mktemp@master
+    with:
+      input: ${{ inputs.input }}
+      tmpDir: ${{ inputs.tmpDir }}
+  - name: "Run expression."
+    id: expression
+    uses: act/common/yq/yq@master
+    with:
+      command: "'${{ inputs.expression }}' '${{ steps.input.outputs.tmp }}'"
+  - name: "Remove temporary files."
+    run: rm -rf "${{ inputs.tmpDir }}"
+    shell: bash

@@ -1,0 +1,24 @@
+name: yq
+description: "Run yq commands."
+inputs:
+  command:
+    description: "Shell arguments to pass into yq."
+    required: true
+  program:
+    description: "Program to run instead of yq. Default: yq"
+    required: false
+    default: "yq"
+  catchErrors:
+    description: "Whether or not errors should be handled."
+    required: false
+outputs:
+  console:
+    description: "The console output of the command."
+runs:
+  env:
+    PROGRAM: ${{ inputs.program }}
+    CATCH_ERRORS: ${{ inputs.catchErrors }}
+  using: docker
+  image: Dockerfile
+  args:
+  - ${{ inputs.command }}

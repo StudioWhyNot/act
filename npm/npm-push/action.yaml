@@ -1,0 +1,56 @@
+name: npm-push
+description: "Publish an NPM package to a registry."
+inputs:
+  tgz:
+    description: "Path to the tarball file to publish."
+    required: true
+  registry:
+    description: "NPM registry URL."
+    required: false
+    default: ${{ github.server_url }}/api/packages/${{ github.repository_owner }}/npm/
+  apiKey:
+    description: "NPM authentication token."
+    required: true
+  nodeVersion:
+    description: "Node.js version to use."
+    required: false
+    default: "20"
+  access:
+    description: "Package access level: public or restricted."
+    required: false
+    default: "public"
+runs:
+  using: "composite"
+  steps:
+  - name: "Setup Node.js"
+    uses: https://github.com/actions/setup-node@v4
+    with:
+      node-version: ${{ inputs.nodeVersion }}
+  - name: "Publish package"
+    run: |
+      # Ensure path starts with ./ so npm recognizes it as a file path
+      TGZ_PATH="${{ inputs.tgz }}"
+      # Trim whitespace
+      TGZ_PATH=$(echo "$TGZ_PATH" | xargs)
+
+      if [[ ! "$TGZ_PATH" =~ ^[./~] ]]; then
+        echo "Path does not start with . / or ~, adding ./ prefix"
+        TGZ_PATH="./$TGZ_PATH"
+      fi
+
+      # Configure npm authentication for the registry (scoped to project)
+      REGISTRY_PATH=$(echo "${{ inputs.registry }}" | sed -E 's|https?://||')
+      npm config set --location=project registry "${{ inputs.registry }}"
+      npm config set --location=project "//${REGISTRY_PATH}:_authToken" "${{ inputs.apiKey }}"
+
+      echo "Publishing $TGZ_PATH to ${{ inputs.registry }}"
+      npm publish --location=project "$TGZ_PATH" --access ${{ inputs.access }}
+
+      echo "Package published successfully"
+    shell: bash
+  - name: "Clean up npm authentication"
+    if: always()
+    run: |
+      # Clean up project .npmrc in case of early exit
+      rm -f .npmrc
+    shell: bash
