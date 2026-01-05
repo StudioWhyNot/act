@@ -1,0 +1,55 @@
+name: mktemp
+description: "Make a temporary file or directory with the specified contents."
+inputs:
+  input:
+    description: "Contents of the temporary file or directory."
+    required: false
+    default: ""
+  inputType:
+    description: "How the input should be parsed. Options: raw, file, dir, expression, auto"
+    required: false
+    default: auto
+  outputType:
+    description: "How the input should be output. Options: file, dir, auto"
+    required: false
+    default: auto
+  transferType:
+    description: "How the input should be transferred. Options: copy, move"
+    required: false
+    default: copy
+  tmpDir:
+    description: "Temporary directory. Default: /tmp"
+    required: true
+    default: /tmp
+  additionalArgs:
+    description: "Additional arguments to pass in."
+    required: false
+outputs:
+  tmp:
+    description: "The name of the temporary file or directory."
+    value: ${{ steps.mktemp.outputs.tmp }}
+runs:
+  using: "composite"
+  steps:
+  - name: "Get the proper input type."
+    if: ${{ inputs.inputType == 'auto' }}
+    id: getinputtype
+    uses: StudioWhyNot/act/common/utils/inputtype@master
+    with:
+      input: ${{ inputs.input }}
+  - name: "Make the temporary file."
+    id: mktemp
+    run: |
+      INPUT_TYPE="${{ inputs.inputType }}"
+      if [[ $INPUT_TYPE == 'auto' ]]; then
+        INPUT_TYPE="${{ steps.getinputtype.outputs.type }}"
+      fi
+
+      #Store in a heredoc to account for quotes.
+      INPUT=$(cat <<EOF
+      ${{ inputs.input }}
+      EOF
+      )
+
+      bash ${{ github.action_path }}/make_temp.sh "$INPUT" "$INPUT_TYPE" "${{ inputs.outputType }}" "${{ inputs.transferType }}" "${{ inputs.tmpDir }}" "${{ inputs.additionalArgs }}"
+    shell: bash

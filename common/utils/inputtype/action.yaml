@@ -1,0 +1,29 @@
+name: inputtype
+description: "Determine whether the input is a file, directory, or raw input."
+inputs:
+  input:
+    description: "Input contents."
+    required: true
+outputs:
+  type:
+    description: "Whether the input is a file, dir (directory), or raw input."
+    value: ${{ steps.gettype.outputs.type }}
+runs:
+  using: "composite"
+  steps:
+  - name: "Make the temporary file."
+    id: gettype
+    run: |
+      #Store in a heredoc to account for quotes.
+      INPUT=$(cat <<EOF
+      ${{ inputs.input }}
+      EOF
+      )
+      TYPE="raw"
+      if [[ -f "$INPUT" ]]; then
+        TYPE="file"
+      elif [[ -d "$INPUT" ]]; then
+        TYPE="dir"
+      fi
+      echo "type=$TYPE" >> "$GITHUB_OUTPUT"
+    shell: bash
